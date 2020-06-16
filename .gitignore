@@ -66,3 +66,10 @@ input.txt
 jsoncatalog.txt
 realjsoncatalog.txt
 supplements
+
+
+ef_sample_stubby/
+rsync_test/
+ef2_files/
+old_*
+hathi_upd_*

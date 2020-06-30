@@ -156,7 +156,9 @@ def download_file(htids, outdir='./', keep_dirs=False, silent=True, format='stub
             sub_kwargs = dict(stdout=devnull, stderr=devnull, universal_newlines=True)
 
         response = subprocess.run(cmd, check=False, **sub_kwargs)
-        logging.debug(response)
+        if len(response.stderr) > 0:
+            logging.debug("Error list:")
+            logging.warning(response.stderr)
         out = (response.returncode, response.stdout)
 
     else:
@@ -170,12 +172,12 @@ def download_file(htids, outdir='./', keep_dirs=False, silent=True, format='stub
 
     output = b'['
     for htid in htids:
-        logging.debug(outdir + '/' + htid + '.json.bz2')
+        logging.debug(outdir + '/' + htid.replace(':', "+").replace('/', "=") + '.json.bz2')
         try:
-            file_object = bz2.open(outdir + '/' + htid + '.json.bz2').read()
+            file_object = bz2.open(outdir + '/' + htid.replace(':', "+").replace('/', "=") + '.json.bz2').read()
             output = output + file_object + b','
-        except FileNotFoundError:
-            pass
+        except FileNotFoundError as e:
+            logging.error(e)
 
     output = output[:-1] + b']'
     
@@ -218,6 +220,8 @@ def main():
     volids = [] # list for collecting volume IDs to search in batches
     records = {}
     batch_size = 20
+    could_not_find = []
+    got_results_for = []
     # read in one line at a time, write out one json string at a time, logging progress
     for line in args.hathifile:
         logging.debug(line)
@@ -225,7 +229,6 @@ def main():
         if lineNum < args.startLine:
             continue
         elif args.endLine > 0 and lineNum > args.endLine:
-            logging.debug("BREAK")
             break
         elif lineNum >= args.startLine:
             logging.debug("reading line number " + str(lineNum))
@@ -236,6 +239,7 @@ def main():
 
             # use volume id from hathifile
             volumeId = row[0]
+            logging.debug("VolumeID: " + volumeId)
             volids += [volumeId]
             
             record = {"searchstring": "unknown", "lc_classes": [], "lc_subclass": [],
@@ -264,28 +268,66 @@ def main():
             logging.debug(batch_size)
 
             if len(volids) >= batch_size:
+                found_volids = {}
+                for volid in volids:
+                    found_volids[volid] = False
+
                 logging.info("%d records collected, Querying solr now." % batch_size)
                 results = download_file(volids,outdir='ef2_files',silent=False)
 #                results = querySolr(volids, solr, batch_size)
 #                logging.debug(results)
                 results_content = json.loads(results.decode())
                 for result in results_content:
-                    logging.debug(records.keys())
+                    #remove the processed file to preserve disk space
+                    os.remove('ef2_files/' + result['htid'].replace(':', "+").replace('/', "=") + '.json.bz2')
+                    got_results_for.append(result['htid'])
+#                    logging.debug("Got results for: " + result['htid'])
+#                    logging.debug(records.keys())
+                    found_volids[result['htid']] = True
                     htfile_record = records[result['htid']]
                     record = build_record(result['htid'], result, htfile_record)
                     args.outfile.write(json.dumps(record)+'\n')
+
+                for element in found_volids:
+                    if not found_volids[element]:
+                        could_not_find.append(element)
+#                        logging.debug("Could not find " + element)
+
                 volids = []
                 records = {}
-    sys.exit()
+#    sys.exit()
     # Process any outstanding files
+    found_volids = {}
+    for volid in volids:
+        found_volids[volid] = False
+    logging.info("%d records collected, Querying solr now." % len(volids))
     results = download_file(volids,outdir='ef2_files',silent=False)
 #    results = querySolr(volids, solr, batch_size)
 #    logging.debug(results)
     results_content = json.loads(results.decode())
     for result in results_content:
+        #remove the processed file to preserve disk space
+        os.remove('ef2_files/' + result['htid'].replace(':', "+").replace('/', "=") + '.json.bz2')
+        got_results_for.append(result['htid'])
+#        logging.debug("Got results for: " + result['htid'])
+#        logging.debug(records.keys())
+        found_volids[result['htid']] = True
         htfile_record = records[result['htid']]
         record = build_record(result['htid'], result, htfile_record)
         args.outfile.write(json.dumps(record)+'\n')
+
+    for element in found_volids:
+        if not found_volids[element]:
+            could_not_find.append(element)
+#            logging.debug("Could not find " + element)
+
+    logging.debug("Got results for %d records:" % len(got_results_for))
+    for res in got_results_for:
+        logging.debug(res)
+
+    logging.debug("Could not find results for %d records:" % len(could_not_find))
+    for nres in could_not_find:
+        logging.debug(nres)
 
     logging.info("done")
 

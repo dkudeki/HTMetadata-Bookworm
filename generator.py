@@ -172,9 +172,9 @@ def download_file(htids, outdir='./', keep_dirs=False, silent=True, format='stub
 
     output = b'['
     for htid in htids:
-        logging.debug(outdir + '/' + htid.replace(':', "+").replace('/', "=") + '.json.bz2')
+        logging.debug(outdir + clean_htid(htid) + '.json.bz2')
         try:
-            file_object = bz2.open(outdir + '/' + htid.replace(':', "+").replace('/', "=") + '.json.bz2').read()
+            file_object = bz2.open(outdir + clean_htid(htid) + '.json.bz2').read()
             output = output + file_object + b','
         except FileNotFoundError as e:
             logging.error(e)
@@ -183,6 +183,25 @@ def download_file(htids, outdir='./', keep_dirs=False, silent=True, format='stub
     
 
     if len(output) > 1:    
+        return output
+    else:
+        return b'[]'
+
+def read_local_files(htids,storedir='volumes'):
+    import bz2
+
+    output = b'['
+    for htid in htids:
+        logging.debug(storedir + '/' + id_to_rsync(htid))
+        try:
+            file_object = bz2.open(storedir + '/' + id_to_rsync(htid)).read()
+            output = output + file_object + b','
+        except FileNotFoundError as e:
+            logging.error(e)
+
+    output = output[:-1] + b']'
+
+    if len(output) > 1:
         return output
     else:
         return b'[]'
@@ -200,6 +219,8 @@ def main():
     parser.add_argument("--outDir", default=os.getcwd())
     parser.add_argument("--startLine", type=int, default = 0)
     parser.add_argument("--endLine", type=int, default = -1)
+    parser.add_argument("--indir", action='store_true', help="Use if EF files have laready been loaded to disk")
+#    parser.add_argument("--solr", action='store_true', help="Query default solr to get metadata instead")
     parser.add_argument("--solrEndpoint", help="Which Solr endpoint should be queried for the API?",
         type=str, default = "http://data.htrc.illinois.edu/htrc-ef-access/get?action=download-ids&output=json")
 
@@ -245,14 +266,20 @@ def main():
             record = {"searchstring": "unknown", "lc_classes": [], "lc_subclass": [],
               "fiction_nonfiction": "unknown", "genres": [], "languages":[], "format": "unknown",
               "page_count_bin": "unknown", "word_count_bin": "unknown", 
-              "publication_place": "unknown"}
+              "publication_place": "unknown", "digitization_agent_code": "unknown"}
 
             # Hathifile derived record info
-            record['date'] = row[16]
+            record['date_year'] = row[16]
             record['filename'] = cleanVolumeId
-            record['publication_country'] = loc.marcCountryDict[row[17]] if row[17] in loc.marcCountryDict else "unknown"
-            record['publication_state'] = loc.marcStateDict[row[17]] if row[17] in loc.marcStateDict else ""
+            logging.debug(row[17].strip())
+            try:
+                logging.debug(loc.marcCountryDict[row[17].strip()])
+            except:
+                logging.debug(row[17] + " not found in marcCountryDict")
+            record['publication_country'] = loc.marcCountryDict[row[17].strip()] if row[17] in loc.marcCountryDict else "unknown"
+            record['publication_state'] = loc.marcStateDict[row[17].strip()] if row[17] in loc.marcStateDict else ""
             record['is_gov_doc'] = "Yes" if row[15] == 1 else "No"
+            record['digitization_agent_code'] = row[23]
 
             logging.debug(record)
 
@@ -272,17 +299,24 @@ def main():
                 for volid in volids:
                     found_volids[volid] = False
 
-                logging.info("%d records collected, Querying solr now." % batch_size)
-                results = download_file(volids,outdir='ef2_files',silent=False)
-#                results = querySolr(volids, solr, batch_size)
-#                logging.debug(results)
-                results_content = json.loads(results.decode())
+                if args.indir:
+                    logging.info("%d records collected, Querying local directory now." % batch_size)
+                    results = read_local_files(volids).decode()
+#                elif args.solr:
+#                    logging.info("%d records collected, Querying solr now." % batch_size)
+#                    results = querySolr(volids, solr, batch_size).text
+#                    logging.debug(type(results))
+                else:
+                    logging.info("%d records collected, Querying rsync now." % batch_size)
+                    results = download_file(volids,outdir='ef2_files',silent=False).decode()
+                results_content = json.loads(results)
                 for result in results_content:
                     #remove the processed file to preserve disk space
-                    os.remove('ef2_files/' + result['htid'].replace(':', "+").replace('/', "=") + '.json.bz2')
+                    if not args.indir:
+                        os.remove('ef2_files/' + clean_htid(result['htid']) + '.json.bz2')
                     got_results_for.append(result['htid'])
-#                    logging.debug("Got results for: " + result['htid'])
-#                    logging.debug(records.keys())
+                    logging.debug("Got results for: " + result['htid'])
+                    logging.debug(records.keys())
                     found_volids[result['htid']] = True
                     htfile_record = records[result['htid']]
                     record = build_record(result['htid'], result, htfile_record)
@@ -300,17 +334,26 @@ def main():
     found_volids = {}
     for volid in volids:
         found_volids[volid] = False
-    logging.info("%d records collected, Querying solr now." % len(volids))
-    results = download_file(volids,outdir='ef2_files',silent=False)
-#    results = querySolr(volids, solr, batch_size)
-#    logging.debug(results)
-    results_content = json.loads(results.decode())
+
+    if args.indir:
+        logging.info("%d records collected, Querying local directory now." % batch_size)
+        results = read_local_files(volids).decode()
+#    elif args.solr:
+#        logging.info("%d records collected, Querying solr now." % len(volids))
+#        results = querySolr(volids, solr, batch_size).text
+#        logging.debug(type(results))
+    else:
+        logging.info("%d records collected, Querying rsync now." % batch_size)
+        results = download_file(volids,outdir='ef2_files',silent=False).decode()
+
+    results_content = json.loads(results)
     for result in results_content:
         #remove the processed file to preserve disk space
-        os.remove('ef2_files/' + result['htid'].replace(':', "+").replace('/', "=") + '.json.bz2')
+        if not args.indir:
+            os.remove('ef2_files/' + clean_htid(result['htid']) + '.json.bz2')
         got_results_for.append(result['htid'])
-#        logging.debug("Got results for: " + result['htid'])
-#        logging.debug(records.keys())
+        logging.debug("Got results for: " + result['htid'])
+        logging.debug(records.keys())
         found_volids[result['htid']] = True
         htfile_record = records[result['htid']]
         record = build_record(result['htid'], result, htfile_record)
@@ -365,7 +408,7 @@ def build_record(volumeId, result, record):
 
     if 'pubDate' in result['metadata']:
         try:
-            record['date'] = int(result['metadata']['pubDate'])
+            record['date_year'] = int(result['metadata']['pubDate'])
         except (ValueError, TypeError) as e:
             pass
 
@@ -381,14 +424,21 @@ def build_record(volumeId, result, record):
 
     if "genre" in result['metadata']:
         if type(result['metadata']['genre']) is str:
-            record['genres'].append(result['metadata']['genre'])
+            if result['metadata']['genre'] == 'http://id.loc.gov/vocabulary/marcgt/fic':
+                record['fiction_nonfiction'] = 'Fiction'
+            else:
+                record['fiction_nonfiction'] = 'Not fiction'
+
+            if result['metadata']['genre'] != 'http://id.loc.gov/vocabulary/marcgt/doc' and genre.find('http') == 0:
+                record['genres'].append(result['metadata']['genre'])
         else:
+            if 'http://id.loc.gov/vocabulary/marcgt/fic' in result['metadata']['genre']:
+                record['fiction_nonfiction'] = 'Fiction'
+            else:
+                record['fiction_nonfiction'] = 'Not fiction'
+
             for genre in result['metadata']['genre']:
-                if genre == 'http://id.loc.gov/vocabulary/marcgt/fic':
-                    record['fiction_nonfiction'] = 'Fiction'
-#                elif genre == 'Not fiction':
-#                    record['fiction_nonfiction'] = 'Not fiction'
-                else:
+                if genre != 'http://id.loc.gov/vocabulary/marcgt/doc' and genre.find('http') == 0:
                     record['genres'].append(genre)
 
 #    if "typeOfResource" in result['metadata']:
@@ -421,10 +471,12 @@ def build_record(volumeId, result, record):
 
     if 'pubPlace' in result['metadata'] and record['publication_country'] == "unknown":
         if type(result['metadata']["pubPlace"]) is list:
-            country_code = result['metadata']['pubPlace'][0]['id'][:-result['metadata']['pubPlace'][0]['id'].rfind('/')]
+            country_code = result['metadata']['pubPlace'][0]['id'][result['metadata']['pubPlace'][0]['id'].rfind('/')+1:]
         else:
-            country_code = result['metadata']['pubPlace']['id'][:-result['metadata']['pubPlace']['id'].rfind('/')]
+            country_code = result['metadata']['pubPlace']['id'][result['metadata']['pubPlace']['id'].rfind('/')+1:]
 
+        logging.debug(result['metadata']['pubPlace']['id'])
+        logging.debug("Country code:")
         logging.debug(country_code)
         record['publication_country'] = loc.marcCountryDict[country_code] if country_code in loc.marcCountryDict else "unknown"
 

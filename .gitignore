@@ -70,6 +70,6 @@ supplements
 
 ef_sample_stubby/
 rsync_test/
-ef2_files/
+ef2_files*/
 old_*
 hathi_upd_*

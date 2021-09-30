@@ -486,9 +486,6 @@ def build_record(volumeId, result, record):
     if 'pages' in result['features']:
         record['word_count_bin'] = u.getWordBin(int(sum([ page['tokenCount'] for page in result['features']['pages'] ])))
 
-    
-    multi_fields = ["htrc_gender"]
-
     if 'sourceInstitution' in result['metadata']:
         record['htsource'] = [ result['metadata']['sourceInstitution']['name'] ]
 
@@ -515,9 +512,7 @@ def build_record(volumeId, result, record):
     except KeyError:
         pass
 
-    record['htrc_gender'] = []
-
-    for field in ['lc_classes', 'lc_subclass', 'genres', 'languages', 'htsource', 'mainauthor', 'publisher', 'format', 'htrc_gender']:
+    for field in ['lc_classes', 'lc_subclass', 'genres', 'languages', 'htsource', 'mainauthor', 'publisher', 'format']:
         # eliminate duplicates
         record[field] = list(set(record[field]))
         # add unknown value to empty arrays so they can be searched using filters

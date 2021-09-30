@@ -1,7 +1,7 @@
 [
   {
     "datatype":"time",
-    "field":"date",
+    "field":"date_year",
     "type":"integer",
     "unique":true,
     "derived":[
@@ -24,7 +24,7 @@
   },
   {
     "datatype":"categorical",
-    "field":"lc_subclasses",
+    "field":"lc_subclass",
     "unique":false,
     "type":"text"
   },
@@ -54,18 +54,18 @@
   },
   {
     "datatype":"categorical",
+    "field":"digitization_agent_code",
+    "unique":true,
+    "type":"text"
+  },
+  {
+    "datatype":"categorical",
     "field":"mainauthor",
     "unique":false,
     "type":"text"
   },  {
     "datatype":"categorical",
     "field":"publisher",
-    "unique":false,
-    "type":"text"
-  },
-  {
-    "datatype":"categorical",
-    "field":"htrc_gender",
     "unique":false,
     "type":"text"
   },

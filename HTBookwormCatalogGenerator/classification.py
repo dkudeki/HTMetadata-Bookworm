@@ -241,6 +241,26 @@ subClass2charDict['VK'] = "Navigation. Merchant marine"
 subClass2charDict['VM'] = "Naval architecture. Shipbuilding. Marine engineering"
 subClass2charDict['ZA'] = "Information resources (General)"
 
+subClass1charDict = {}
+subClass1charDict['B'] = "Philosophy (General)"
+subClass1charDict['C'] = "Auxiliary Sciences of History (General)"
+subClass1charDict['D'] = "History (General)"
+subClass1charDict['G'] = "Geography (General)"
+subClass1charDict['H'] = "Social sciences (General)"
+subClass1charDict['J'] = "General legislative and executive papers"
+subClass1charDict['K'] = "Law in general. Comparative and uniform law. Jurisprudence"
+subClass1charDict['L'] = "Education (General)"
+subClass1charDict['M'] = "Music"
+subClass1charDict['N'] = "Visual arts"
+subClass1charDict['P'] = "Philology. Linguistics"
+subClass1charDict['Q'] = "Science (General)"
+subClass1charDict['R'] = "Medicine (General)"
+subClass1charDict['S'] = "Agriculture (General)"
+subClass1charDict['T'] = "Technology (General)"
+subClass1charDict['U'] = "Military science (General)"
+subClass1charDict['V'] = "Naval science (General)"
+subClass1charDict['Z'] = "Books (General). Writing. Paleography"
+
 def getClass(callNumber):
     if callNumber[:3].lower() == "law":
         return classDict['K']
@@ -255,7 +275,7 @@ def getSubclass(callNumber):
         return subClass3charDict[callNumber[:3].upper()]
     elif callNumber[:2] in subClass2charDict:
         return subClass2charDict[callNumber[:2].upper()]
-    elif callNumber[:1] in classDict:
-        return classDict[callNumber[:1].upper()]
+    elif callNumber[:1] in subClass1charDict:
+        return subClass1charDict[callNumber[:1].upper()]
     else:
         return None

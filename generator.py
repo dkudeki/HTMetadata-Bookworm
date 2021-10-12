@@ -413,14 +413,25 @@ def build_record(volumeId, result, record):
             pass
 
     if "lcc" in result['metadata']:
-        for callNumber in result['metadata']['lcc']:
-            classResponse = c.getClass(callNumber)
-            if classResponse is not None:
-                record['lc_classes'].append(c.getClass(callNumber))
+        if type(result['metadata']['lcc']) is list:
+            for callNumber in result['metadata']['lcc']:
+                classResponse = c.getClass(callNumber)
+                if classResponse is not None:
+                    record['lc_classes'].append(classResponse)
 
-            subclassResponse = c.getSubclass(callNumber)
+                subclassResponse = c.getSubclass(callNumber)
+                if subclassResponse is not None:
+                    record['lc_subclass'].append(subclassResponse)
+        else:
+            classResponse = c.getClass(result['metadata']['lcc'])
+            if classResponse is not None:
+                record['lc_classes'].append(classResponse)
+
+            subclassResponse = c.getSubclass(result['metadata']['lcc'])
             if subclassResponse is not None:
-                record['lc_subclass'].append(c.getSubclass(callNumber))
+                record['lc_subclass'].append(subclassResponse)
+
+
 
     if "genre" in result['metadata']:
         if type(result['metadata']['genre']) is str:
@@ -469,16 +480,22 @@ def build_record(volumeId, result, record):
             if 'name' in result['metadata']["pubPlace"]:
                 record["publication_place"] = result['metadata']["pubPlace"]["name"]
 
-    if 'pubPlace' in result['metadata'] and record['publication_country'] == "unknown":
-        if type(result['metadata']["pubPlace"]) is list:
-            country_code = result['metadata']['pubPlace'][0]['id'][result['metadata']['pubPlace'][0]['id'].rfind('/')+1:]
-        else:
-            country_code = result['metadata']['pubPlace']['id'][result['metadata']['pubPlace']['id'].rfind('/')+1:]
+        if record['publication_country'] == "unknown":
+            if type(result['metadata']["pubPlace"]) is list:
+                country_code = result['metadata']['pubPlace'][0]['id'][result['metadata']['pubPlace'][0]['id'].rfind('/')+1:]
+            else:
+                country_code = result['metadata']['pubPlace']['id'][result['metadata']['pubPlace']['id'].rfind('/')+1:]
 
-        logging.debug(result['metadata']['pubPlace']['id'])
-        logging.debug("Country code:")
-        logging.debug(country_code)
-        record['publication_country'] = loc.marcCountryDict[country_code] if country_code in loc.marcCountryDict else "unknown"
+            record['publication_country'] = loc.marcCountryDict[country_code] if country_code in loc.marcCountryDict else "unknown"
+
+        if record['publication_state'] == "":
+            if type(result['metadata']["pubPlace"]) is list:
+                state_code = result['metadata']['pubPlace'][0]['id'][result['metadata']['pubPlace'][0]['id'].rfind('/')+1:]
+            else:
+                state_code = result['metadata']['pubPlace']['id'][result['metadata']['pubPlace']['id'].rfind('/')+1:]
+
+            record['publication_state'] = loc.marcStateDict[state_code] if state_code in loc.marcStateDict else ""
+
 
     if 'pageCount' in result['features']:
         record['page_count_bin'] = u.getPageBin(int(result['features']['pageCount']))
